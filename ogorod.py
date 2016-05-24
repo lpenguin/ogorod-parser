@@ -50,11 +50,11 @@ def read_table(file_name: str, column_names: List[str])->List:
 
 def read_column_defs(c: ConfigParser):
     return [{
-            'name': s.replace('section:', ''),
+            'name': s.replace('column:', ''),
             'format': FORMATS[c[s]['format']]
         }
         for s in c.sections()
-        if s.startswith('section:')
+        if s.startswith('column:')
     ]
 
 
