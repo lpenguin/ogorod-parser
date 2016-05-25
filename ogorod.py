@@ -4,9 +4,8 @@ import sys
 from datetime import datetime
 from os.path import exists, join
 from configparser import ConfigParser
-from typing import List, Dict, NamedTuple
-import dateparser
-
+# import dateparser
+import time
 import requests
 from bs4 import BeautifulSoup, ResultSet, Tag
 
@@ -21,6 +20,9 @@ FORMATS = {
 
 
 def parse_page(body: str)->dict:
+    def parse_date(s: str):
+        return datetime.strptime(s.strip(), "%d.%m.%Y %H:%M:%S")
+
     soup = BeautifulSoup(body, "html.parser")
 
     items = {
@@ -28,19 +30,19 @@ def parse_page(body: str)->dict:
         for item in soup(class_='sensortable')
     }
 
-    time = soup.find(class_='datetime').contents[0]
+    time_str = soup.find(class_='datetime').contents[0]
 
     return {
-        'time': dateparser.parse(time),
+        'time': parse_date(time_str),
         'items': items
     }
 
 
-def read_table(file_name: str, column_names: List[str])->List:
+def read_table(file_name: str, column_names: list)->list:
     if not exists(file_name):
         return []
     else:
-        with open(file_name) as f:
+        with open(file_name, encoding='utf-8') as f:
             reader = csv.DictReader(f)
 
             if reader.fieldnames != ['time'] + column_names:
@@ -58,7 +60,7 @@ def read_column_defs(c: ConfigParser):
     ]
 
 
-def page_to_row(page: dict, column_defs: List[Dict])->List:
+def page_to_row(page: dict, column_defs: list)->list:
     items = page['items']
     row = {}
 
@@ -70,9 +72,8 @@ def page_to_row(page: dict, column_defs: List[Dict])->List:
     row['time'] = page['time']
     return row
 
-def main():
-    c = ConfigParser()
-    c.read('./config.ini')
+
+def main(c: ConfigParser):
     log_dir = c['main']['log directory']
     page_url = c['main']['page url']
 
@@ -95,13 +96,24 @@ def main():
     table.append(page_to_row(page, column_defs))
 
     os.makedirs(log_dir, exist_ok=True)
-    with open(log_file, 'w') as f:
+    with open(log_file, 'w', encoding='utf-8', newline='\n') as f:
         writer = csv.DictWriter(f, fieldnames=['time']+column_names)
         writer.writeheader()
         writer.writerows(table)
 
 
 if __name__ == '__main__':
-    main()
+    c = ConfigParser()
+    with open('./config.ini', encoding='utf-8') as f:
+        c.read_string(f.read())
+
+    update_time = int(c['main']['update interval'])
+    while True:
+        try:
+            main(c)
+            time.sleep(update_time)
+        except Exception as e:
+            print(e)
+            time.sleep(10)
 
 
